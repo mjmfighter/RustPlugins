@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net4.8</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="..\..\Carbon.QuickStart\linux\server\RustDedicated_Data\Managed\*.dll" />
+    <Reference Include="..\..\Carbon.QuickStart\linux\server\carbon\managed\Carbon.Common.dll" />
+    <Reference Include="..\..\Carbon.QuickStart\linux\server\carbon\managed\Carbon.SDK.dll" />
+  </ItemGroup>
+
+</Project>
