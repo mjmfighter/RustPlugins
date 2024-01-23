@@ -6,10 +6,16 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(OS)' == 'Unix'">
     <Reference Include="..\..\Carbon.QuickStart\linux\server\RustDedicated_Data\Managed\*.dll" />
     <Reference Include="..\..\Carbon.QuickStart\linux\server\carbon\managed\Carbon.Common.dll" />
     <Reference Include="..\..\Carbon.QuickStart\linux\server\carbon\managed\Carbon.SDK.dll" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Reference Include="..\..\Carbon.QuickStart\win\server\RustDedicated_Data\Managed\*.dll" />
+    <Reference Include="..\..\Carbon.QuickStart\win\server\carbon\managed\Carbon.Common.dll" />
+    <Reference Include="..\..\Carbon.QuickStart\win\server\carbon\managed\Carbon.SDK.dll" />
   </ItemGroup>
 
 </Project>

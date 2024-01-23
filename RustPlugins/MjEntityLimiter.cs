@@ -126,23 +126,23 @@ namespace Oxide.Plugins
         return null;
       }
 
-      var prefabShortName = GetShortname(prefabFullName);
-      // Get the limit for the given prefab, if it doesn't exist default to -1
-      var limit = perm.limits.TryGetValue(prefabFullName, out var value) ? value : -1;
-      if (limit > 0)
+      // Get the limit for the given prefab (for both long and short names), if it doesn't exist default to -1
+      var limit = perm.GetLimit(prefabFullName);
+      if (limit >= 0)
       {
         var playerData = playerEntityLimitsCache.GetByPlayer(player);
         var limitEntityData = playerData.Get(prefabFullName);
-        if (limitEntityData.count >= limit)
+        var entityCount = limitEntityData.count;
+        if (entityCount >= limit)
         {
-          SendMessage(player, MessageLimitType.Limit, limit);
+          SendMessage(player, MessageLimitType.Limit, entityCount);
           return false;
         }
 
-        var warnLimit = limit * config.warnPercentage / 100;
-        if (limitEntityData.count >= warnLimit)
+        var warnLimit = limit * (100 - config.warnPercentage) / 100;
+        if (entityCount >= warnLimit)
         {
-          SendMessage(player, MessageLimitType.Warning, limitEntityData.count, limit);
+          SendMessage(player, MessageLimitType.Warning, entityCount + 1, limit - entityCount - 1);
         }
       }
 
@@ -160,7 +160,8 @@ namespace Oxide.Plugins
       var owner = entity.OwnerID;
       var prefabName = entity.PrefabName;
 
-      NextTick(() => {
+      NextTick(() =>
+      {
         if (!destroyed && !entity.IsValid())
         {
           return;
@@ -181,7 +182,7 @@ namespace Oxide.Plugins
       });
     }
 
-    private string GetShortname(string original)
+    private static string GetShortname(string original)
     {
       var index = original.LastIndexOf("/", StringComparison.Ordinal) + 1;
       var name = original.Substring(index);
@@ -209,12 +210,31 @@ namespace Oxide.Plugins
 
       [JsonProperty(PropertyName = "Entity Limits")]
       public Dictionary<string, int> limits = new Dictionary<string, int>();
+
+      public int GetLimit(string prefabName)
+      {
+        if (limits.TryGetValue(prefabName, out var limit))
+        {
+          return limit;
+        }
+
+        var shortName = GetShortname(prefabName);
+        if (limits.TryGetValue(shortName, out limit))
+        {
+          return limit;
+        }
+
+        return -1;
+      }
     }
 
     private class LimitsConfig
     {
       [JsonProperty(PropertyName = "Enable more debugging messages")]
       public bool debug = false;
+
+      [JsonProperty(PropertyName = "Chat Prefix")]
+      public string chatPrefix = "<color=red>[MjEntityLimiter]</color> ";
 
       [JsonProperty(PropertyName = "Warn about limits below x percent")]
       public int warnPercentage = 10;
@@ -228,7 +248,7 @@ namespace Oxide.Plugins
                     priority = 0,
                     limits = new Dictionary<string, int>
                     {
-                        {"assets/prefabs/deployable/windmill/windmill.prefab", 0}
+                        {"electric.windmill.small", 0}
                     }
                 }
       };
@@ -276,21 +296,19 @@ namespace Oxide.Plugins
       Limit,
     }
 
-    private Dictionary<string, string> messages = new Dictionary<string, string>
-        {
-            {MessageLimitType.Warning.ToString(), "You used {0} of that entity type, you have {1} remaining..." },
-            {MessageLimitType.Limit.ToString(), "You have reached your limit of that entity type!  You have used: {0}" }
-        };
-
     protected override void LoadDefaultMessages()
     {
-      lang.RegisterMessages(messages, this, "en");
+      lang.RegisterMessages(new Dictionary<string, string>
+      {
+        {MessageLimitType.Warning.ToString(), "You used {0} of that entity type, you have {1} remaining..." },
+        {MessageLimitType.Limit.ToString(), "You have reached your limit of that entity type!  You have used: {0}" }
+      }, this, "en");
     }
 
     private void SendMessage(object receiver, MessageLimitType type, params object[] args)
     {
       var userId = (receiver as BasePlayer)?.UserIDString;
-      var message = String.Format(messages[type.ToString()], args);
+      var message = String.Format(lang.GetMessage(type.ToString(), this, null), args);
       SendMessage(receiver, message);
     }
 
@@ -312,7 +330,7 @@ namespace Oxide.Plugins
       var player = receiver as BasePlayer;
       if (player != null)
       {
-        player.ChatMessage(message);
+        Player.Message(player, message, config.chatPrefix);
         return;
       }
     }
