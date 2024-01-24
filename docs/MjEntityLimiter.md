@@ -4,6 +4,8 @@
 
 The `MjEntityLimiter` is a Rust server plugin designed to limit the number of specific entities a player can spawn or build. It's particularly useful for server administrators who want to maintain server performance and gameplay balance by preventing players from over-spawning entities that might cause lag or disrupt the gameplay experience. The plugin is highly configurable, allowing administrators to set specific limits for different entities and provide warnings to players as they approach these limits.
 
+For a demonstration of how the `MjEntityLimiter` works, you can watch this [YouTube video](https://youtu.be/1DDkhUW5ptg) showcasing the plugin in action.
+
 ## Features
 
 - **Entity Limit Enforcement**: Limits the number of instances a player can spawn or build of specific entities.
