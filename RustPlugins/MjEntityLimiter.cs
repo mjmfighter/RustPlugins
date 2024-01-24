@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MjEntityLimter", "mjmfighter", "0.0.1")]
+    [Info("MjEntityLimter", "mjmfighter", "1.0.0")]
     [Description("Limits specified entities for players")]
     public class MjEntityLimiter : RustPlugin
     {
