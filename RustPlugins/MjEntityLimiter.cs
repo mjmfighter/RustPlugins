@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Oxide.Core.Libraries.Covalence;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MjEntityLimter", "mjmfighter", "1.0.0")]
+    [Info("MjEntityLimter", "mjmfighter", "1.1.0")]
     [Description("Limits specified entities for players")]
     public class MjEntityLimiter : RustPlugin
     {
@@ -66,6 +67,25 @@ namespace Oxide.Plugins
         private void OnEntityKill(BaseEntity entity)
         {
             UpdateEntity(entity, true);
+        }
+
+        #endregion
+
+        #region Commands
+
+        [Command("mjentitylimiter.clearcache"), Permission("mjentitylimiter.clearcache")]
+        private void ClearCacheCommand(IPlayer player, string cmd, string[] args)
+        {
+            permissionCache.Clear();
+            player.Message("Cache cleared");
+        }
+
+        [Command("mjentitylimiter.reload"), Permission("mjentitylimiter.reload")]
+        private void ReloadCommand(IPlayer player, string cmd, string[] args)
+        {
+            LoadConfig();
+            permissionCache.Clear();
+            player.Message("Config reloaded");
         }
 
         #endregion
@@ -239,16 +259,22 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Warn about limits below x percent")]
             public int warnPercentage = 10;
 
+            [JsonProperty(PropertyName = "Default Entity Limits")]
+            public Dictionary<string, int> defaultLimits = new Dictionary<string, int>
+            {
+                {"generator.wind.scrap", 1}
+            };
+
             [JsonProperty(PropertyName = "Limit Permissions")]
             public LimitPermission[] limitPermissions = new LimitPermission[]
             {
                 new LimitPermission
                 {
-                    permission = nameof(MjEntityLimiter) + ".default",
+                    permission = nameof(MjEntityLimiter) + ".vip",
                     priority = 0,
                     limits = new Dictionary<string, int>
                     {
-                        {"electric.windmill.small", 0}
+                        {"generator.wind.scrap", 0}
                     }
                 }
             };
@@ -264,6 +290,7 @@ namespace Oxide.Plugins
                 if (config == null)
                 {
                     LoadDefaultConfig();
+                    SaveConfig();
                 }
             }
             catch
@@ -273,7 +300,7 @@ namespace Oxide.Plugins
                 LoadDefaultConfig();
                 return;
             }
-            SaveConfig();
+            LoadLimitPermissions();
         }
 
         protected override void LoadDefaultConfig()
@@ -377,6 +404,45 @@ namespace Oxide.Plugins
 
         #region Permissions
 
+        private Dictionary<string, LimitPermission> permissionLimits = new Dictionary<string, LimitPermission>();
+
+        private void LoadLimitPermissions()
+        {
+            permissionLimits["default"] = new LimitPermission
+            {
+                permission = null,
+                priority = -1,
+                limits = config.defaultLimits
+            };
+
+            // Load all the permissions and save them in permissionLimits.  Add the default permissions to the permission limits if they don't already exist
+            foreach (var perm in config.limitPermissions)
+            {
+                if (!string.IsNullOrEmpty(perm.permission) && !permission.PermissionExists(perm.permission))
+                {
+                    permission.RegisterPermission(perm.permission, this);
+                }
+
+                if (!permissionLimits.ContainsKey(perm.permission))
+                {
+                    permissionLimits[perm.permission] = perm;
+                }
+                else
+                {
+                    // Add all the default limits to the player's limits if they don't already exist
+                    foreach (var pair in config.defaultLimits)
+                    {
+                        if (!permissionLimits[perm.permission].limits.ContainsKey(pair.Key))
+                        {
+                            permissionLimits[perm.permission].limits[pair.Key] = pair.Value;
+                        }
+                    }
+                }
+            }
+
+
+        }
+
         private LimitPermission GetPlayerLimits(string playerID)
         {
             if (permissionCache.TryGetValue(playerID, out var lastPermission))
@@ -385,8 +451,13 @@ namespace Oxide.Plugins
             }
 
             var lastPriority = -1;
-            foreach (var perm in config.limitPermissions)
+            foreach (var perm in permissionLimits.Values)
             {
+                if (perm.permission == null)
+                {
+                    continue;
+                }
+
                 if (perm.priority > lastPriority && permission.UserHasPermission(playerID, perm.permission))
                 {
                     lastPriority = perm.priority;
@@ -394,10 +465,11 @@ namespace Oxide.Plugins
                 }
             }
 
-            if (lastPermission != null)
+            if (lastPermission == null)
             {
-                permissionCache.Set(playerID, lastPermission);
+                lastPermission = permissionLimits["default"];
             }
+            permissionCache.Set(playerID, lastPermission);
 
             return lastPermission;
         }
@@ -463,6 +535,14 @@ namespace Oxide.Plugins
                     {
                         _cache.Remove(key);
                     }
+                }
+            }
+
+            public void Clear()
+            {
+                lock (_cache)
+                {
+                    _cache.Clear();
                 }
             }
         }

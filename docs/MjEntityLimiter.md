@@ -20,7 +20,8 @@ For a demonstration of how the `MjEntityLimiter` works, you can watch this [YouT
 - `Enable more debugging messages`: If set to `true`, the plugin will output more detailed debug messages to the server console.
 - `Chat Prefix`: The prefix used for chat messages sent by this plugin.
 - `Warn about limits below x percent`: The percentage of the limit at which players start receiving warnings. For example, if set to `10`, players will be warned when they reach 90% of their limit.
-- `Limit Permissions`: An array of permission settings that define the entity limits for different groups of players.
+- `Default Entity Limits`: An array of items and the number to be limited to
+- `Limit Permissions`: An array of permission settings that define the entity limits for different groups of players.  If an entity is defined in the default but not in a permission, the default value will be applied
 
 ### Limit Permission Configuration
 
