@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Define RUST constant since these are rust plugins-->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);RUST</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(OS)' == 'Unix'">
     <Reference Include="..\..\Carbon.QuickStart\linux\server\RustDedicated_Data\Managed\*.dll" />
     <Reference Include="..\..\Carbon.QuickStart\linux\server\carbon\managed\Carbon.Common.dll" />
