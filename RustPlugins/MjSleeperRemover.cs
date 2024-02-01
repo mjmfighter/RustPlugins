@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,6 +17,11 @@ namespace Oxide.Plugins
     {
         #region Variables
 
+        [PluginReference]
+        private Plugin SkillTree;
+
+        private List<string> skillTreeKills = new List<string>();
+
         private SleeperConfiguration config;
         private PluginData sleeperInventories = new PluginData();
 
@@ -30,6 +36,7 @@ namespace Oxide.Plugins
 
         private void OnServerSave()
         {
+            Puts("Saving sleeper data");
             var currentTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var sleepersToRemove = new List<string>();
             foreach (var sleeper in sleeperInventories)
@@ -62,14 +69,15 @@ namespace Oxide.Plugins
 
         private void OnPlayerConnected(BasePlayer player)
         {
+            Puts("Player connected");
+            if (!sleeperInventories.ContainsKey(player.UserIDString))
+                return;
+                
             if (player.HasPlayerFlag(BasePlayer.PlayerFlags.ReceivingSnapshot))
             {
                 timer.Once(1f, () => OnPlayerConnected(player));
                 return;
             }
-
-            if (!sleeperInventories.ContainsKey(player.UserIDString))
-                return;
             
             NextTick(() =>
             {
@@ -78,11 +86,8 @@ namespace Oxide.Plugins
                 
                 if (player.IsDead())
                 {
-                    Puts($"Player {player.displayName} ({player.UserIDString}) is dead, respawning them");
                     player.Respawn();
                 }
-                
-                
             });
         }
 
@@ -91,7 +96,6 @@ namespace Oxide.Plugins
             if (!sleeperInventories.ContainsKey(player.UserIDString))
                 return;
 
-            Puts($"Restoring inventory for {player.displayName} ({player.UserIDString})");
             var playerData = sleeperInventories[player.UserIDString];
             playerData.RestoreItemsToPlayer(player);
             sleeperInventories.Remove(player.UserIDString);
@@ -110,28 +114,39 @@ namespace Oxide.Plugins
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
             if (player.IsDestroyed)
+            {
                 return;
+            }
             
             var playerData = new SerializedPlayer(player);
             sleeperInventories[player.UserIDString] = playerData;
 
-            NextTick(() =>
+            if (SkillTree != null)
             {
-                if (player == null || !player.IsConnected)
-                    return;
+                skillTreeKills.Add(player.UserIDString);
+            }
 
-                player.inventory.Strip();
-                player.Die();
-            });
+            player.inventory.Strip();
+            player.Die();
         }
 
         private void OnEntitySpawned(BaseNetworkable entity)
         {
-            if (entity.ShortPrefabName.Equals("player_corpse"))
+            // If short prefab name is player_corpse or player_corpse_new, remove it
+            if (entity.ShortPrefabName == "player_corpse" || entity.ShortPrefabName == "player_corpse_new")
             {
-                Puts($"Removing corpse {entity.net.ID}");
                 entity.Kill();
             }
+        }
+
+        private object STOnLoseXP(BasePlayer player)
+        {
+            if (skillTreeKills.Contains(player.UserIDString))
+            {
+                skillTreeKills.Remove(player.UserIDString);
+                return true;
+            }
+            return null;
         }
 
         #endregion
