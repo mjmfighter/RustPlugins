@@ -29,6 +29,15 @@ namespace Oxide.Plugins
 
         #region Hooks
 
+        private void OnNewSave(string filename)
+        {
+            if (config.wipeOnUpgradeOrChange)
+            {
+                sleeperInventories.Clear();
+                Interface.Oxide.DataFileSystem.WriteObject("MjSleeperRemover", sleeperInventories);
+            }
+        }
+
         private void Init()
         {
             sleeperInventories = Interface.Oxide.DataFileSystem.ReadObject<PluginData>("MjSleeperRemover");
@@ -136,17 +145,13 @@ namespace Oxide.Plugins
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
             if (player.IsDestroyed)
-            {
                 return;
-            }
             
             var playerData = new SerializedPlayer(player);
             sleeperInventories[player.UserIDString] = playerData;
 
             if (SkillTree != null)
-            {
                 skillTreeKills.Add(player.UserIDString);
-            }
 
             KillPlayer(player);
         }
@@ -155,9 +160,7 @@ namespace Oxide.Plugins
         {
             // If short prefab name is player_corpse or player_corpse_new, remove it
             if (entity.ShortPrefabName == "player_corpse" || entity.ShortPrefabName == "player_corpse_new")
-            {
                 entity.Kill();
-            }
         }
 
         private object STOnLoseXP(BasePlayer player)
@@ -198,13 +201,10 @@ namespace Oxide.Plugins
         protected void KillPlayer(BasePlayer player)
         {
             if (player.IsDead())
-            {
                 return;
-            }
             if (SkillTree != null)
-            {
                 skillTreeKills.Add(player.UserIDString);
-            }
+            
             player.inventory.Strip();
             player.Die();
         }
@@ -214,6 +214,9 @@ namespace Oxide.Plugins
         #region Config
 
         private class SleeperConfiguration {
+            [JsonProperty(PropertyName = "Wipe on Upgrade or Change (true/false) (Usually a forced wipe)")]
+            public bool wipeOnUpgradeOrChange = true;
+
             [JsonProperty(PropertyName = "Sleeper Removal Time (hours)")]
             public int sleeperRemovalTime = 300;
 
