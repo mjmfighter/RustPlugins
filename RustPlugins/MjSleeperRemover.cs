@@ -20,7 +20,7 @@ namespace Oxide.Plugins
         [PluginReference]
         private Plugin SkillTree;
 
-        private List<string> skillTreeKills = new List<string>();
+        private HashSet<string> skillTreeKills = new HashSet<string>();
 
         private SleeperConfiguration config;
         private PluginData sleeperInventories = new PluginData();
