@@ -34,9 +34,33 @@ namespace Oxide.Plugins
             sleeperInventories = Interface.Oxide.DataFileSystem.ReadObject<PluginData>("MjSleeperRemover");
         }
 
+        private void OnServerInitialized()
+        {
+            // Register sleeperRemovalTimes permissions
+            foreach (var sleeperRemoval in config.sleeperRemovalTimes)
+            {
+                permission.RegisterPermission(sleeperRemoval.Key, this);
+            }
+
+            foreach (var player in BasePlayer.sleepingPlayerList)
+            {
+                if (BasePlayer.activePlayerList.Contains(player))
+                {
+                    continue;
+                }
+
+                if (!player.IsDestroyed)
+                {
+                    SerializedPlayer playerData = new SerializedPlayer(player);
+                    sleeperInventories[player.UserIDString] = playerData;
+
+                    KillPlayer(player);
+                }
+            }
+        }
+
         private void OnServerSave()
         {
-            Puts("Saving sleeper data");
             var currentTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var sleepersToRemove = new List<string>();
             foreach (var sleeper in sleeperInventories)
@@ -50,7 +74,6 @@ namespace Oxide.Plugins
                         if (sleeperRemoval.Value >= sleeperRemovalTime)
                         {
                             sleeperRemovalTime = sleeperRemoval.Value;
-                        
                         }
                     }
                 }
@@ -69,7 +92,6 @@ namespace Oxide.Plugins
 
         private void OnPlayerConnected(BasePlayer player)
         {
-            Puts("Player connected");
             if (!sleeperInventories.ContainsKey(player.UserIDString))
                 return;
                 
@@ -126,8 +148,7 @@ namespace Oxide.Plugins
                 skillTreeKills.Add(player.UserIDString);
             }
 
-            player.inventory.Strip();
-            player.Die();
+            KillPlayer(player);
         }
 
         private void OnEntitySpawned(BaseNetworkable entity)
@@ -172,6 +193,20 @@ namespace Oxide.Plugins
         protected override void SaveConfig()
         {
             Config.WriteObject(config);
+        }
+
+        protected void KillPlayer(BasePlayer player)
+        {
+            if (player.IsDead())
+            {
+                return;
+            }
+            if (SkillTree != null)
+            {
+                skillTreeKills.Add(player.UserIDString);
+            }
+            player.inventory.Strip();
+            player.Die();
         }
 
         #endregion
