@@ -34,13 +34,13 @@ namespace Oxide.Plugins
             if (config.wipeOnUpgradeOrChange)
             {
                 sleeperInventories.Clear();
-                Interface.Oxide.DataFileSystem.WriteObject("MjSleeperRemover", sleeperInventories);
+                SaveData();
             }
         }
 
         private void Init()
         {
-            sleeperInventories = Interface.Oxide.DataFileSystem.ReadObject<PluginData>("MjSleeperRemover");
+            LoadData();
         }
 
         private void OnServerInitialized()
@@ -96,7 +96,7 @@ namespace Oxide.Plugins
                 sleeperInventories.Remove(sleeper);
             }
 
-            Interface.Oxide.DataFileSystem.WriteObject("MjSleeperRemover", sleeperInventories);
+            SaveData();
         }
 
         private void OnPlayerConnected(BasePlayer player)
@@ -207,6 +207,16 @@ namespace Oxide.Plugins
             
             player.inventory.Strip();
             player.Die();
+        }
+
+        protected void SaveData()
+        {
+            Interface.Oxide.DataFileSystem.WriteObject("MjSleeperRemover", sleeperInventories);
+        }
+
+        protected void LoadData()
+        {
+            sleeperInventories = Interface.Oxide.DataFileSystem.ReadObject<PluginData>("MjSleeperRemover");
         }
 
         #endregion
