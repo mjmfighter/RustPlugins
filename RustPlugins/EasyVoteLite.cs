@@ -953,7 +953,7 @@ namespace Oxide.Plugins
                 {
                     // Execute the request
                     yield return request.SendWebRequest();
-                    if ((request.isNetworkError || request.isHttpError) && request.error.Contains("Too Many Requests"))
+                    if ((request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError) && request.error.Contains("Too Many Requests"))
                     {
                         Puts("Discord Webhook Rate Limit Exceeded... Waiting 30 seconds...");
                         yield return new WaitForSeconds(30f);
