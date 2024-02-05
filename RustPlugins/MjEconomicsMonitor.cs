@@ -1,4 +1,5 @@
 //Reference: 0Harmony
+// Requires: Economics
 
 using System.Diagnostics;
 using Harmony;
