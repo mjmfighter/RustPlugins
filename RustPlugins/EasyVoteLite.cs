@@ -806,6 +806,38 @@ namespace Oxide.Plugins
                         { ConfigDefaultKeys.apiLink, "https://bestservers.com/server/{0}" },
                         { ConfigDefaultKeys.apiUsername, "false"}
                     }
+                },
+                {
+                    "7DaysToDie-Servers.com",
+                    new Dictionary<string, string>()
+                    {
+                        {
+                            ConfigDefaultKeys.apiClaim,
+                            "https://7daystodie-servers.com/api/?action=post&object=votes&element=claim&key={0}&steamid={1}"
+                        },
+                        {
+                            ConfigDefaultKeys.apiStatus,
+                            "https://7daystodie-servers.com/api/?object=votes&element=claim&key={0}&steamid={1}"
+                        },
+                        { ConfigDefaultKeys.apiLink, "https://7daystodie-servers.com/server/{0}" },
+                        { ConfigDefaultKeys.apiUsername, "false"}
+                    }
+                },
+                {
+                    "Ark-Servers.net",
+                    new Dictionary<string, string>()
+                    {
+                        {
+                            ConfigDefaultKeys.apiClaim,
+                            "https://ark-servers.net/api/?action=post&object=votes&element=claim&key={0}&steamid={1}"
+                        },
+                        {
+                            ConfigDefaultKeys.apiStatus,
+                            "https://ark-servers.net/api/?object=votes&element=claim&key={0}&steamid={1}"
+                        },
+                        { ConfigDefaultKeys.apiLink, "https://ark-servers.net/server/{0}" },
+                        { ConfigDefaultKeys.apiUsername, "false"}
+                    }
                 }
             };
             SaveConfig();
