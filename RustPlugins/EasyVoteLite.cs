@@ -203,81 +203,51 @@ namespace Oxide.Plugins
             DataFile[player.UserIDString] = playerVoteCount;
             SaveDataFile(DataFile);
             _Debug($"Updated Vote Count: {playerVoteCount}");
-            // Handle giving rewards to the player based on cumulative boolean value
-            if (_config.PluginSettings[ConfigDefaultKeys.RewardIsCumulative] == "true")
-            {
-                GiveCumulativeRewards(player, (int) DataFile[player.UserIDString]);
-            }
-            else
-            {
-                GiveNormalRewards(player, (int) DataFile[player.UserIDString]);
-            }
+            GiveRewards(player, (int) DataFile[player.UserIDString]);
         }
 
-        private void GiveCumulativeRewards(BasePlayer player, int playerVoteCount)
+        private void GiveRewards(BasePlayer player, int playerVoteCount)
         {
             _Debug("------------------------------");
-            _Debug("Method: GiveCumulativeRewards");
+            _Debug("Method: GiveRewards");
             _Debug($"Player: {player.displayName}/{player.UserIDString}");
-            // Handle the every reward
-            GiveEveryReward(player);
-            // Handle the first reward
-            GiveFirstReward(player);
-            // Handle all subsequent rewards
+            _Debug($"Vote Count: {playerVoteCount}");
+            
             foreach (KeyValuePair<string, List<string>> rewards in _config.Rewards)
             {
-                if (rewards.Key.ToInt() <= playerVoteCount)
+                var key = rewards.Key;
+                int number;
+                if (key.StartsWith("@") && int.TryParse(key.Substring(1), out number))
+                {
+                    if (playerVoteCount % number == 0)
+                    {
+                        GiveSubsequentReward(player, rewards.Value);
+                    }
+                }
+                else if (key.StartsWith("@"))
                 {
                     GiveSubsequentReward(player, rewards.Value);
                 }
-            }
-        }
-
-        private void GiveNormalRewards(BasePlayer player, int playerVoteCount)
-        {
-            _Debug("------------------------------");
-            _Debug("Method: GiveNormalRewards");
-            _Debug($"Player: {player.displayName}/{player.UserIDString}");
-            // Handle the every reward
-            GiveEveryReward(player);
-            // Handle the first reward
-            if (playerVoteCount == 1)
-            {
-                GiveFirstReward(player);
-            }
-            // Handle all subsequent rewards
-            foreach (KeyValuePair<string, List<string>> rewards in _config.Rewards)
-            {
-                if (rewards.Key.ToInt() == playerVoteCount)
+                else if (key.StartsWith(">=") && int.TryParse(key.Substring(2).Trim(), out number) && playerVoteCount >= number)
                 {
                     GiveSubsequentReward(player, rewards.Value);
                 }
-            }
-        }
-
-        private void GiveEveryReward(BasePlayer player)
-        {
-            _Debug("------------------------------");
-            _Debug("Method: GiveEveryReward");
-            _Debug($"Player: {player.displayName}/{player.UserIDString}");
-            foreach (string rewardCommand in _config.Rewards["@"])
-            {
-                string command = ParseRewardCommand(player, rewardCommand);
-                _Debug($"Reward Command: {command}");
-                rust.RunServerCommand(command);
-            }
-        }
-
-        private void GiveFirstReward(BasePlayer player)
-        {
-            _Debug("------------------------------");
-            _Debug("Method: GiveFirstReward");
-            _Debug($"Player: {player.displayName}/{player.UserIDString}");
-            foreach (string rewardCommand in _config.Rewards["first"])
-            {
-                string command = ParseRewardCommand(player, rewardCommand);
-                _Debug($"Reward Command: {command}");
-                rust.RunServerCommand(command);
+                else if (key.StartsWith(">") && int.TryParse(key.Substring(1).Trim(), out number) && playerVoteCount > number)
+                {
+                    GiveSubsequentReward(player, rewards.Value);
+                }
+                else if (key.StartsWith("<=") && int.TryParse(key.Substring(2).Trim(), out number) && playerVoteCount <= number)
+                {
+                    GiveSubsequentReward(player, rewards.Value);
+                }
+                else if (key.StartsWith("<") && int.TryParse(key.Substring(1).Trim(), out number) && playerVoteCount < number)
+                {
+                    GiveSubsequentReward(player, rewards.Value);
+                }
+                else if (key.ToInt() == playerVoteCount)
+                {
+                    GiveSubsequentReward(player, rewards.Value);
+                }
             }
         }
 
@@ -739,16 +709,18 @@ namespace Oxide.Plugins
             _config.Rewards = new Dictionary<string, List<string>>
             {
                 { "@", new List<string>() { "giveto {playerid} supply.signal 1" } },
-                { "first", new List<string>() { "giveto {playerid} stones 10000", "sr add {playerid} 10000" } },
-                { "3", new List<string>() { "addgroup {playerid} vip 7d" } },
+                { "@3", new List<string> { "giveto {playerid} supply.signal 1" } },
+                { "1", new List<string>() { "giveto {playerid} stones 10000", "sr add {playerid} 10000" } },
+                { ">3", new List<string>() { "addgroup {playerid} vip 7d" } },
                 { "6", new List<string>() { "grantperm {playerid} plugin.test 1d" } },
                 { "10", new List<string>() { "zl.lvl {playerid} * 2" } }
             };
             _config.RewardDescriptions = new Dictionary<string, string>
             {
                 { "@", "Every Vote: 1 Supply Signal" },
-                { "first", "First Vote: 10000 Stones, 10000 RP" },
-                { "3", "3rd Vote: 7 days of VIP rank" },
+                { "@3", "Every 3rd Vote: 1 Supply Signal" },
+                { "1", "First Vote: 10000 Stones, 10000 RP" },
+                { ">3", "Every vote above 4: VIP for 7 Days" },
                 { "6", "6th Vote: 1 day of plugin.test permission" },
                 { "10", "10th Vote: 2 zLevels in Every Category" }
             };
