@@ -754,8 +754,8 @@ namespace Oxide.Plugins
             };
             _config.Servers = new Dictionary<string, Dictionary<string, string>>
             {
-                { "ServerName1", new Dictionary<string, string>() { { "Rust-Servers.net", "ID:KEY" },{ "Rustservers.gg", "ID:KEY" }, { "BestServers.com", "ID:KEY" } } },
-                { "ServerName2", new Dictionary<string, string>() { { "Rust-Servers.net", "ID:KEY" },{ "Rustservers.gg", "ID:KEY" }, { "BestServers.com", "ID:KEY" } } }
+                { "ServerName1", new Dictionary<string, string>() { { "Rust-Servers.net", "ID:KEY" },{ "Rustservers.gg", "ID:KEY" }, { "BestServers.com", "ID:KEY" }, { "7DaysToDie-Servers.com", "ID:KEY" }, { "Ark-Servers.net", "ID:KEY" } } },
+                { "ServerName2", new Dictionary<string, string>() { { "Rust-Servers.net", "ID:KEY" },{ "Rustservers.gg", "ID:KEY" }, { "BestServers.com", "ID:KEY" }, { "7DaysToDie-Servers.com", "ID:KEY" }, { "Ark-Servers.net", "ID:KEY" } } }
             };
             _config.VoteSitesAPI = new Dictionary<string, Dictionary<string, string>>
             {
