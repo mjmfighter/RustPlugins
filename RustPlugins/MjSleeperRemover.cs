@@ -250,7 +250,9 @@ namespace Oxide.Plugins
             public ulong skinId;
             public float condition;
             public int magazine;
-            public List<int> mods;
+            // public List<int> mods;
+
+            public SerializedItemContainer contents;
 
             public SerializedItem() { }
 
@@ -259,20 +261,25 @@ namespace Oxide.Plugins
                 amount = item.amount;
                 skinId = item.skin;
                 condition = item.condition;
-                magazine = item.contents?.itemList?.Count ?? 0;
-                mods = item.contents?.itemList?.Select(i => i.info.itemid).ToList() ?? new List<int>();
+                magazine = item.IsBackpack() ? 0 : item.contents?.itemList?.Count ?? 0;
+                // mods = item.contents?.itemList?.Select(i => i.info.itemid).ToList() ?? new List<int>();
+                contents = item.contents == null ? new SerializedItemContainer() : new SerializedItemContainer(item.contents);
             }
 
             public Item ToItem() {
+                Interface.Oxide.LogInfo($"Creating item {name} with amount {amount} and skin {skinId}: {contents.Count} contents");
                 var item = ItemManager.CreateByName(name, amount, skinId);
                 item.condition = condition;
                 if (magazine > 0) {
                     var magazineItem = ItemManager.CreateByName("ammo.rifle", magazine);
                     magazineItem.MoveToContainer(item.contents);
                 }
-                foreach (var mod in mods) {
-                    var modItem = ItemManager.CreateByItemID(mod);
-                    modItem.MoveToContainer(item.contents);
+                // foreach (var mod in mods) {
+                //     var modItem = ItemManager.CreateByItemID(mod);
+                //     modItem.MoveToContainer(item.contents);
+                // }
+                foreach (var content in contents) {
+                    content.Value.ToItem().MoveToContainer(item.contents, content.Key);
                 }
                 return item;
             }
