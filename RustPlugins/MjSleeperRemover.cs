@@ -8,10 +8,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using static BaseProjectile;
 
 namespace Oxide.Plugins
 {
-    [Info("MjSleeperRemover", "mjmfighter", "1.0.0")]
+    [Info("MjSleeperRemover", "mjmfighter", "1.0.1")]
     [Description("Removes sleepers from the server and saves their inventory for when they return")]
     public class MjSleeperRemover : RustPlugin
     {
@@ -244,13 +245,32 @@ namespace Oxide.Plugins
 
         private class PluginData : Dictionary<string, SerializedPlayer> { }
 
+        private class SerializedMagazine {
+            public string ammoType = null;
+            public int contents;
+
+            public SerializedMagazine() { }
+
+            public SerializedMagazine(Magazine magazine) {
+                ammoType = magazine.ammoType.shortname;
+                contents = magazine.contents;
+            }
+
+            public void InsertMagazine(BaseProjectile weapon) {
+                if (ammoType == null)
+                    return;
+                var ammoTypeDef = ItemManager.FindItemDefinition(ammoType);
+                weapon.primaryMagazine.ammoType = ammoTypeDef;
+                weapon.primaryMagazine.contents = contents;
+            }
+        }
+
         private class SerializedItem {
             public string name;
             public int amount;
             public ulong skinId;
             public float condition;
-            public int magazine;
-            // public List<int> mods;
+            public SerializedMagazine magazine;
 
             public SerializedItemContainer contents;
 
@@ -261,23 +281,20 @@ namespace Oxide.Plugins
                 amount = item.amount;
                 skinId = item.skin;
                 condition = item.condition;
-                magazine = item.IsBackpack() ? 0 : item.contents?.itemList?.Count ?? 0;
-                // mods = item.contents?.itemList?.Select(i => i.info.itemid).ToList() ?? new List<int>();
+                BaseProjectile weapon = item.GetHeldEntity() as BaseProjectile;
+                if (weapon != null)
+                {
+                    magazine = new SerializedMagazine(weapon.primaryMagazine);
+                }
                 contents = item.contents == null ? new SerializedItemContainer() : new SerializedItemContainer(item.contents);
             }
 
             public Item ToItem() {
-                Interface.Oxide.LogInfo($"Creating item {name} with amount {amount} and skin {skinId}: {contents.Count} contents");
                 var item = ItemManager.CreateByName(name, amount, skinId);
                 item.condition = condition;
-                if (magazine > 0) {
-                    var magazineItem = ItemManager.CreateByName("ammo.rifle", magazine);
-                    magazineItem.MoveToContainer(item.contents);
+                if (magazine != null && item.GetHeldEntity() is BaseProjectile) {
+                    magazine.InsertMagazine(item.GetHeldEntity() as BaseProjectile);
                 }
-                // foreach (var mod in mods) {
-                //     var modItem = ItemManager.CreateByItemID(mod);
-                //     modItem.MoveToContainer(item.contents);
-                // }
                 foreach (var content in contents) {
                     content.Value.ToItem().MoveToContainer(item.contents, content.Key);
                 }
