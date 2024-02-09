@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MjEntityLimter", "mjmfighter", "1.1.0")]
+    [Info("MjEntityLimter", "mjmfighter", "1.1.1")]
     [Description("Limits specified entities for players")]
     public class MjEntityLimiter : RustPlugin
     {
@@ -125,7 +125,7 @@ namespace Oxide.Plugins
                 // Add the entity to the LimitEntityData
                 limitEntityData.entities.Add(entity);
 
-                if (config.debug && processed > 0 && processed % 1000 == 0)
+                if (config.Debug && processed > 0 && processed % 1000 == 0)
                 {
                     Puts($"Entity processing: {processed}/{total}");
                     yield return new WaitForEndOfFrame();
@@ -159,10 +159,16 @@ namespace Oxide.Plugins
                     return false;
                 }
 
-                var warnLimit = limit * (100 - config.warnPercentage) / 100;
+                // If the entity count is above the warning limit, send a warning message
+                var warnLimit = limit * (100 - config.WarnPercentage) / 100;
                 if (entityCount >= warnLimit)
                 {
                     SendMessage(player, MessageLimitType.Warning, entityCount + 1, limit - entityCount - 1);
+                }
+                // Also send a warning message if periodic warnings are enabled and the entity count is 1 or a multiple of 10
+                else if (config.PeriodicWarning && (entityCount == 1 || entityCount % 10 == 0))
+                {
+                    SendMessage(player, MessageLimitType.Warning, entityCount, limit - entityCount);
                 }
             }
 
@@ -251,16 +257,19 @@ namespace Oxide.Plugins
         private class LimitsConfig
         {
             [JsonProperty(PropertyName = "Enable more debugging messages")]
-            public bool debug = false;
+            public bool Debug = false;
 
             [JsonProperty(PropertyName = "Chat Prefix")]
-            public string chatPrefix = "<color=red>[MjEntityLimiter]</color> ";
+            public string ChatPrefix = "<color=red>[MjEntityLimiter]</color> ";
+
+            [JsonProperty(PropertyName = "Periodic Warn Players About Limits")]
+            public bool PeriodicWarning = true;
 
             [JsonProperty(PropertyName = "Warn about limits below x percent")]
-            public int warnPercentage = 10;
+            public int WarnPercentage = 10;
 
             [JsonProperty(PropertyName = "Default Entity Limits")]
-            public Dictionary<string, int> defaultLimits = new Dictionary<string, int>
+            public Dictionary<string, int> DefaultLimits = new Dictionary<string, int>
             {
                 {"generator.wind.scrap", 1}
             };
@@ -356,7 +365,7 @@ namespace Oxide.Plugins
             var player = receiver as BasePlayer;
             if (player != null)
             {
-                Player.Message(player, message, config.chatPrefix);
+                Player.Message(player, message, config.ChatPrefix);
                 return;
             }
         }
@@ -412,7 +421,7 @@ namespace Oxide.Plugins
             {
                 permission = null,
                 priority = -1,
-                limits = config.defaultLimits
+                limits = config.DefaultLimits
             };
 
             // Load all the permissions and save them in permissionLimits.  Add the default permissions to the permission limits if they don't already exist
@@ -430,7 +439,7 @@ namespace Oxide.Plugins
                 else
                 {
                     // Add all the default limits to the player's limits if they don't already exist
-                    foreach (var pair in config.defaultLimits)
+                    foreach (var pair in config.DefaultLimits)
                     {
                         if (!permissionLimits[perm.permission].limits.ContainsKey(pair.Key))
                         {
