@@ -16,11 +16,24 @@ namespace Oxide.Plugins
         private void Init()
         {
             harmony = HarmonyInstance.Create(Name + "PATCH");
-            var originalMethod = typeof(Economics).GetMethod("OnEconomicsWithdraw", 
+            var originalMethod = typeof(Economics).GetMethod("Withdraw", 
                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
             
             var prefixMethod = typeof(MjEconomicsMonitor).GetMethod(nameof(WithdrawPrefix),
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            
+            if (originalMethod == null)
+            {
+                Interface.Oxide.LogError("Failed to find Economics.OnEconomicsWithdraw method.");
+                return;
+            }
+
+            if (prefixMethod == null)
+            {
+                Interface.Oxide.LogError("Failed to find MjEconomicsMonitor.WithdrawPrefix method.");
+                return;
+            }
             
             harmony.Patch(originalMethod, new HarmonyMethod(prefixMethod));
         }
