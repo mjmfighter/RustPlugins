@@ -168,7 +168,7 @@ namespace Oxide.Plugins
                 // Also send a warning message if periodic warnings are enabled and the entity count is 1 or a multiple of 10
                 else if (config.PeriodicWarning && (entityCount == 1 || entityCount % 10 == 0))
                 {
-                    SendMessage(player, MessageLimitType.Warning, entityCount, limit - entityCount);
+                    SendMessage(player, MessageLimitType.Warning, entityCount + 1, limit - entityCount - 1);
                 }
             }
 

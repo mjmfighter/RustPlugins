@@ -64,6 +64,7 @@ namespace Oxide.Plugins
             var queue = new WebRequestQueue(this, webrequest, (responses) =>
             {
                 var votesBefore = pluginData[player.UserIDString].TotalVotes;
+                var claimResponses = new Dictionary<string, ClaimResponse>();
                 // Phrase all the responses.
                 foreach (var response in responses)
                 {
@@ -71,7 +72,7 @@ namespace Oxide.Plugins
                     var site = response.Key.Split(':')[1];
                     var voteServerConfig = config.VoteServers[site];
                     var claim = PhraseClaimVoteResponse(response.Value.Item1, response.Value.Item2, player, server, site);
-                    // TODO: save the claims so that we can print out the appropriate message.
+                    claimResponses.Add(response.Key, claim);
                 }
                 var votesAfter = pluginData[player.UserIDString].TotalVotes;
                 // Give the player all the rewards they would have earned
@@ -83,6 +84,18 @@ namespace Oxide.Plugins
                 GiveRewards(player, newRewards.ToArray());
 
                 // TODO: Print the appropriate message.  If all claimed, print everything is claimed.  If some are not claimed, print that some are not claimed.  If there was an error in any of them, also include that at the end
+                if (claimResponses.Values.All(r => r == ClaimResponse.Claimed))
+                {
+                    Player.Message(player, GetMessage(MessageTypes.ClaimReward), config.Prefix);
+                }
+                else if (claimResponses.Values.Any(r => r == ClaimResponse.Error))
+                {
+                    Player.Message(player, "There was an error claiming your rewards, please try again later", config.Prefix);
+                }
+                else
+                {
+                    Player.Message(player, "Some of your rewards were not claimed, please try again later", config.Prefix);
+                }
             });
 
             foreach (var server in config.Servers)
@@ -282,11 +295,11 @@ namespace Oxide.Plugins
 
         #region Helpers
 
-        public enum VoteResponse
+        public enum ClaimResponse
         {
-            Success,
-            AlreadyClaimed,
-            NotVoted,
+            Claimed,
+            NotClaimed,
+            AlreadyVoted,
             Error,
         }
 
@@ -295,7 +308,7 @@ namespace Oxide.Plugins
             return player.inventory.containerMain.capacity - player.inventory.containerMain.itemList.Count >= config.RequiredFreeSlots;
         }
 
-        private VoteResponse PhraseClaimVoteResponse(int code, string response, BasePlayer player, string server, string site)
+        private ClaimResponse PhraseClaimVoteResponse(int code, string response, BasePlayer player, string server, string site)
         {
             if (code == 200)
             {
@@ -304,13 +317,13 @@ namespace Oxide.Plugins
                     case "1":
                         ConsoleDebug($"Player {player.displayName} has claimed vote for {site} on {server}");
                         UpdatePlayerData(player.UserIDString, server, 1);
-                        return VoteResponse.Success;
+                        return ClaimResponse.Claimed;
                     case "2":
                         ConsoleDebug($"Player {player.displayName} has already claimed vote for {site} on {server}");
-                        return VoteResponse.AlreadyClaimed;
+                        return ClaimResponse.AlreadyVoted;
                     default:
                         ConsoleDebug($"Player {player.displayName} has not voted for {site} on {server}");
-                        return VoteResponse.NotVoted;
+                        return ClaimResponse.NotClaimed;
                 }
             }
             else
@@ -318,7 +331,7 @@ namespace Oxide.Plugins
                 // Log error as a warning to the console
                 ConsoleError($"Failed to check vote status for {player.displayName} on {site} with code {code}");
                 ConsoleDebug($"Response: {response}");
-                return VoteResponse.Error;
+                return ClaimResponse.Error;
             }
         }
 
