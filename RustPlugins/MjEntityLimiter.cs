@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
 using System;
 using System.Collections;
@@ -11,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("MjEntityLimter", "mjmfighter", "1.1.1")]
+    [Info("MjEntityLimter", "mjmfighter", "1.1.2")]
     [Description("Limits specified entities for players")]
     public class MjEntityLimiter : RustPlugin
     {
@@ -147,9 +148,11 @@ namespace Oxide.Plugins
             }
 
             // Get the limit for the given prefab (for both long and short names), if it doesn't exist default to -1
+            Debug($"Checking build for {player.displayName} - {GetShortname(prefabFullName)}");
             var limit = perm.GetLimit(prefabFullName);
             if (limit >= 0)
             {
+                Debug($"Checking build for {player.displayName} - {prefabFullName} - {limit}");
                 var playerData = playerEntityLimitsCache.GetByPlayer(player);
                 var limitEntityData = playerData.Get(prefabFullName);
                 var entityCount = limitEntityData.count;
@@ -166,10 +169,12 @@ namespace Oxide.Plugins
                     SendMessage(player, MessageLimitType.Warning, entityCount + 1, limit - entityCount - 1);
                 }
                 // Also send a warning message if periodic warnings are enabled and the entity count is 1 or a multiple of 10
-                else if (config.PeriodicWarning && (entityCount == 1 || entityCount % 10 == 0))
+                else if (config.PeriodicWarning && ((entityCount + 1) == 1 || (entityCount + 1) % 10 == 0))
                 {
                     SendMessage(player, MessageLimitType.Warning, entityCount + 1, limit - entityCount - 1);
                 }
+            } else {
+                Debug($"No limit for {prefabFullName}");
             }
 
             return null;
@@ -182,6 +187,8 @@ namespace Oxide.Plugins
             {
                 return;
             }
+
+            Debug($"Updating entity {GetShortname(entity.PrefabName)} for {entity.OwnerID} - {destroyed}");
 
             var owner = entity.OwnerID;
             var prefabName = entity.PrefabName;
@@ -220,6 +227,22 @@ namespace Oxide.Plugins
         {
             return original.Equals(prefabShortName, StringComparison.OrdinalIgnoreCase) ||
                    original.Equals(prefabFullName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void Debug(string message)
+        {
+            if (config.Debug)
+            {
+                Puts(message);
+            }
+        }
+
+        private void Debug(string message, params object[] args)
+        {
+            if (config.Debug)
+            {
+                Puts(message, args);
+            }
         }
 
         #endregion
@@ -436,20 +459,15 @@ namespace Oxide.Plugins
                 {
                     permissionLimits[perm.permission] = perm;
                 }
-                else
+                // Add all the default limits to the player's limits if they don't already exist
+                foreach (var pair in config.DefaultLimits)
                 {
-                    // Add all the default limits to the player's limits if they don't already exist
-                    foreach (var pair in config.DefaultLimits)
+                    if (!permissionLimits[perm.permission].limits.ContainsKey(pair.Key) || permissionLimits[perm.permission].limits[pair.Key] != pair.Value)
                     {
-                        if (!permissionLimits[perm.permission].limits.ContainsKey(pair.Key))
-                        {
-                            permissionLimits[perm.permission].limits[pair.Key] = pair.Value;
-                        }
+                        permissionLimits[perm.permission].limits[pair.Key] = pair.Value;
                     }
                 }
             }
-
-
         }
 
         private LimitPermission GetPlayerLimits(string playerID)
