@@ -4,6 +4,9 @@ using Oxide.Core;
 using Oxide.Core.Libraries;
 using Oxide.Core.Plugins;
 using static Oxide.Core.Libraries.WebRequests;
+using UnityEngine;
+using System.Collections;
+using UnityEngine.Networking;
 
 namespace Oxide.Plugins
 {
@@ -27,7 +30,14 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            
+            pluginData.Save();
+        }
+
+        // Reset PluginData on server wipe
+        private void OnServerSave()
+        {
+            pluginData = new PluginData();
+            pluginData.Save();
         }
 
         #region Commands
@@ -60,7 +70,7 @@ namespace Oxide.Plugins
         [ChatCommand("claim")]
         private void ClaimCommand(BasePlayer player, string command, string[] args)
         {
-            Player.Message(player, GetMessage(MessageTypes.PleaseWait), config.Prefix);
+            Player.Message(player, GetMessage(MessageTypes.PleaseWaitClaim), config.Prefix);
             var queue = new WebRequestQueue(this, webrequest, (responses) =>
             {
                 var votesBefore = pluginData[player.UserIDString].TotalVotes;
@@ -85,9 +95,22 @@ namespace Oxide.Plugins
 
                 // TODO: Print the appropriate message.  If all claimed, print everything is claimed.  If some are not claimed, print that some are not claimed.  If there was an error in any of them, also include that at the end
                 var allClaimed = claimResponses.Values.All(r => r == ClaimResponse.Claimed || r == ClaimResponse.AlreadyVoted);
+                var anyClaimed = claimResponses.Values.Any(r => r == ClaimResponse.Claimed);
                 var inventoryFull = !given;
                 var errors = claimResponses.Values.Any(r => r == ClaimResponse.Error);
-                SendClaimMessage(player, allClaimed, inventoryFull, errors);
+                SendClaimMessage(player, allClaimed, anyClaimed, inventoryFull, errors);
+                if (anyClaimed)
+                {
+                    var votes = pluginData[player.UserIDString].TotalVotes;
+                    var message = GetMessage(MessageTypes.ClaimGlobalAnnouncement, player.displayName, votes);
+                    rust.BroadcastChat(config.Prefix, message);
+                    if (config.Discord.Enabled)
+                    {
+                        
+                        var discordMessage = GetMessage(MessageTypes.DiscordWebhookMessage, player.displayName, votes, ConVar.Server.hostname);
+                        ServerMgr.Instance.StartCoroutine(SendDiscordMessage(discordMessage));
+                    }
+                }
             });
 
             foreach (var server in config.Servers)
@@ -101,6 +124,66 @@ namespace Oxide.Plugins
                 }
             }
             queue.Start();
+        }
+
+        [ChatCommand("votestatus")]
+        private void VoteStatusCommand(BasePlayer player, string command, string[] args)
+        {
+            Player.Message(player, GetMessage(MessageTypes.PleaseWaitStatus), config.Prefix);
+            var requestQueue = new WebRequestQueue(this, webrequest, (responses) => {
+                // Phrase the responses and store them grouped by the server.  Storing each site under the server it is on
+                var statusResponses = new Dictionary<string, List<(string, StatusResponse)>>();
+                foreach (var response in responses)
+                {
+                    var server = response.Key.Split(':')[0];
+                    var site = response.Key.Split(':')[1];
+                    var voteServerConfig = config.VoteServers[site];
+                    var status = PhraseStatusResponse(response.Value.Item1, response.Value.Item2, player, server, site);
+                    if (!statusResponses.ContainsKey(server))
+                    {
+                        statusResponses[server] = new List<(string, StatusResponse)>();
+                    }
+                    statusResponses[server].Add((site, status));
+                }
+                var statusMessage = "";
+                foreach (var server in statusResponses)
+                {
+                    statusMessage += GetMessage(MessageTypes.StatusServerLine, server.Key);
+                    foreach (var site in server.Value)
+                    {
+                        var color = "red";
+                        var status = "Not Voted";
+                        switch (site.Item2)
+                        {
+                            case StatusResponse.VotedNotClaimed:
+                                color = "yellow";
+                                status = "Voted Not Claimed";
+                                break;
+                            case StatusResponse.VotedClaimed:
+                                color = "green";
+                                status = "Voted Claimed";
+                                break;
+                            case StatusResponse.Error:
+                                color = "red";
+                                status = "Error";
+                                break;
+                        }
+                        statusMessage += GetMessage(MessageTypes.StatusSiteLine, site.Item1, color, status);
+                    }
+                }
+                Player.Message(player, GetMessage(MessageTypes.Status, statusMessage), config.Prefix);
+
+            });
+            foreach (var server in config.Servers)
+            {
+                foreach (var voteServer in server.Value)
+                {
+                    var voteServerConfig = config.VoteServers[voteServer.Key];
+                    var url = FormatURL(voteServerConfig.StatusURL, player, voteServer.Value.Item2);
+                    var request = new WebRequest(url, (int statusCode, string response) => { }, this);
+                    requestQueue.Add($"{server.Key}:${voteServer.Key}", request);
+                }
+            }
         }
 
         // Tries to give the player all rewards.  Returns true if all rewards were given, false if some were not able to be given
@@ -269,9 +352,16 @@ namespace Oxide.Plugins
             ClaimRewardPartialInventorySpace,
             ClaimRewardError,
             ClaimRewardErrorInventorySpace,
-            PleaseWait,
+            ClaimRewardNoClaims,
+            ClaimGlobalAnnouncement,
+            Status,
+            StatusServerLine,
+            StatusSiteLine,
+            PleaseWaitClaim,
+            PleaseWaitStatus,
             RewardList,
             VoteList,
+            DiscordWebhookMessage,
         }
 
         protected override void LoadDefaultMessages()
@@ -285,9 +375,16 @@ namespace Oxide.Plugins
                 [MessageTypes.ClaimRewardPartialInventorySpace.ToString()] = "Thank you for voting!  You have only voted for some of the websites, and have received those rewards. Type /votestatus to check the status of your votes.\nHowever, you do not have enough inventory space to claim all rewards.  Clear your inventory and type /claim again to claim the rest.",
                 [MessageTypes.ClaimRewardError.ToString()] = "There was an error claiming some of your rewards, please try again later.  You can check the status of your votes by typing /votestatus",
                 [MessageTypes.ClaimRewardErrorInventorySpace.ToString()] = "There was an error claiming some of your rewards, please try again later.  You can check the status of your votes by typing /votestatus\nHowever, you do not have enough inventory space to claim all rewards.  Clear your inventory and type /claim again to claim the rest.",
-                [MessageTypes.PleaseWait.ToString()] = "Checking vote sites for your rewards, please wait...",
+                [MessageTypes.ClaimRewardNoClaims.ToString()] = "No rewards were claimed.  You can check the status of your votes by typing /votestatus",
+                [MessageTypes.ClaimGlobalAnnouncement.ToString()] = "<color=#e67e22>{0}</color> has voted <color=#e67e22>{1}</color> time(s) and just received their rewards. Find out where you can vote by typing <color=#e67e22>/vote</color>\nTo see a list of available rewards type <color=#e67e22>/rewardlist</color>",
+                [MessageTypes.Status.ToString()] = "The following are the status of your votes:\n{0}",
+                [MessageTypes.StatusServerLine.ToString()] = "<color=#FF5733>{0}</color>:\n",
+                [MessageTypes.StatusSiteLine.ToString()] = "\t{0}: <color={1}>{2}</color>\n",
+                [MessageTypes.PleaseWaitClaim.ToString()] = "Checking vote sites for your rewards, please wait...",
+                [MessageTypes.PleaseWaitStatus.ToString()] = "Checking vote sites for your vote status, please wait...",
                 [MessageTypes.RewardList.ToString()] = "The following rewards are given for voting:\n{0}",
-                [MessageTypes.VoteList.ToString()] = "The following vote sites are available:\n{0}"
+                [MessageTypes.VoteList.ToString()] = "The following vote sites are available:\n{0}",
+                [MessageTypes.DiscordWebhookMessage.ToString()] = "{0} has claimed {1} vote(s) on {2} and got some rewards!"
             }, this);
         }
 
@@ -296,7 +393,7 @@ namespace Oxide.Plugins
             return string.Format(lang.GetMessage(type.ToString(), this), args);
         }
 
-        private void SendClaimMessage(BasePlayer player, bool allClaimed, bool inventoryFull, bool errors)
+        private void SendClaimMessage(BasePlayer player, bool allClaimed, bool anyClaimed, bool inventoryFull, bool errors)
         {
             var messageKey = MessageTypes.ClaimRewardError;
             if (allClaimed && !inventoryFull && !errors)
@@ -307,11 +404,11 @@ namespace Oxide.Plugins
             {
                 messageKey = MessageTypes.ClaimRewardFullInventorySpace;
             }
-            else if (!allClaimed && !inventoryFull && !errors)
+            else if (anyClaimed && !inventoryFull && !errors)
             {
                 messageKey = MessageTypes.ClaimRewardPartial;
             }
-            else if (!allClaimed && inventoryFull && !errors)
+            else if (anyClaimed && inventoryFull && !errors)
             {
                 messageKey = MessageTypes.ClaimRewardPartialInventorySpace;
             }
@@ -322,6 +419,8 @@ namespace Oxide.Plugins
             else if (errors && inventoryFull)
             {
                 messageKey = MessageTypes.ClaimRewardErrorInventorySpace;
+            } else {
+                messageKey = MessageTypes.ClaimRewardNoClaims;
             }
 
             Player.Message(player, GetMessage(messageKey), config.Prefix);
@@ -336,6 +435,14 @@ namespace Oxide.Plugins
             Claimed,
             NotClaimed,
             AlreadyVoted,
+            Error,
+        }
+
+        public enum StatusResponse
+        {
+            NotVoted,
+            VotedNotClaimed,
+            VotedClaimed,
             Error,
         }
 
@@ -368,6 +475,30 @@ namespace Oxide.Plugins
                 ConsoleError($"Failed to check vote status for {player.displayName} on {site} with code {code}");
                 ConsoleDebug($"Response: {response}");
                 return ClaimResponse.Error;
+            }
+        }
+
+        private StatusResponse PhraseStatusResponse(int code, string response, BasePlayer player, string server, string site)
+        {
+            if (code != 200)
+            {
+                // Log error as a warning to the console
+                ConsoleError($"Failed to check vote status for {player.displayName} on {site} with code {code}");
+                ConsoleDebug($"Response: {response}");
+                return StatusResponse.Error;
+            }
+
+            switch (response)
+            {
+                case "1":
+                    ConsoleDebug($"Player {player.displayName} has voted but not claimed for {site} on {server}");
+                    return StatusResponse.VotedNotClaimed;
+                case "2":
+                    ConsoleDebug($"Player {player.displayName} has already claimed vote for {site} on {server}");
+                    return StatusResponse.VotedClaimed;
+                default:
+                    ConsoleDebug($"Player {player.displayName} has not voted for {site} on {server}");
+                    return StatusResponse.NotVoted;
             }
         }
 
@@ -490,6 +621,36 @@ namespace Oxide.Plugins
                 foreach (var request in _requests)
                 {
                     request.Start();
+                }
+            }
+        }
+
+        #endregion
+
+        #region Discord
+
+        private IEnumerator SendDiscordMessage(string msg)
+        {
+            if (config.Discord.Enabled)
+            {
+                WWWForm form = new WWWForm();
+                string content = $"{msg}\n";
+                form.AddField("content", content);
+
+                using (var request = UnityWebRequest.Post(config.Discord.WebhookUrl, form))
+                {
+                    yield return request.SendWebRequest();
+                    if ((request.result == UnityWebRequest.Result.ConnectionError) || (request.result == UnityWebRequest.Result.ProtocolError))
+                    {
+                        if (request.error.Contains("Too Many Requests"))
+                        {
+                            ConsoleError("Discord Webhook Rate Limit Hit.  Please wait a few minutes before trying again.");
+                        }
+                        else
+                        {
+                            ConsoleError($"Failed to send Discord message: {request.error}");
+                        }
+                    }
                 }
             }
         }
