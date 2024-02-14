@@ -81,21 +81,13 @@ namespace Oxide.Plugins
                 {
                     newRewards.AddRange(GetRewards(i));
                 }
-                GiveRewards(player, newRewards.ToArray());
+                var given = GiveRewards(player, newRewards.ToArray());
 
                 // TODO: Print the appropriate message.  If all claimed, print everything is claimed.  If some are not claimed, print that some are not claimed.  If there was an error in any of them, also include that at the end
-                if (claimResponses.Values.All(r => r == ClaimResponse.Claimed))
-                {
-                    Player.Message(player, GetMessage(MessageTypes.ClaimReward), config.Prefix);
-                }
-                else if (claimResponses.Values.Any(r => r == ClaimResponse.Error))
-                {
-                    Player.Message(player, "There was an error claiming your rewards, please try again later", config.Prefix);
-                }
-                else
-                {
-                    Player.Message(player, "Some of your rewards were not claimed, please try again later", config.Prefix);
-                }
+                var allClaimed = claimResponses.Values.All(r => r == ClaimResponse.Claimed || r == ClaimResponse.AlreadyVoted);
+                var inventoryFull = !given;
+                var errors = claimResponses.Values.Any(r => r == ClaimResponse.Error);
+                SendClaimMessage(player, allClaimed, inventoryFull, errors);
             });
 
             foreach (var server in config.Servers)
@@ -111,7 +103,8 @@ namespace Oxide.Plugins
             queue.Start();
         }
 
-        private void GiveRewards(BasePlayer player, string[] newRewards)
+        // Tries to give the player all rewards.  Returns true if all rewards were given, false if some were not able to be given
+        private bool GiveRewards(BasePlayer player, string[] newRewards)
         {
             // Check to see if player has any unclaimed rewards and try to give them
             var unclaimedRewards = pluginData[player.UserIDString].UnclaimedRewards;
@@ -137,6 +130,8 @@ namespace Oxide.Plugins
                     pluginData[player.UserIDString].UnclaimedRewards.Add(reward);
                 }
             }
+            pluginData.Save();
+            return pluginData[player.UserIDString].UnclaimedRewards.Count == 0;
         }
 
         #endregion
@@ -268,7 +263,12 @@ namespace Oxide.Plugins
         private enum MessageTypes
         {
             ClaimStatus,
-            ClaimReward,
+            ClaimRewardFull,
+            ClaimRewardFullInventorySpace,
+            ClaimRewardPartial,
+            ClaimRewardPartialInventorySpace,
+            ClaimRewardError,
+            ClaimRewardErrorInventorySpace,
             PleaseWait,
             RewardList,
             VoteList,
@@ -279,7 +279,12 @@ namespace Oxide.Plugins
             lang.RegisterMessages(new Dictionary<string, string>
             {
                 [MessageTypes.ClaimStatus.ToString()] = "Checked {0}, Status: {1}",
-                [MessageTypes.ClaimReward.ToString()] = "You have claimed your reward",
+                [MessageTypes.ClaimRewardFull.ToString()] = "Thank you for voting! You have claimed your reward(s)!",
+                [MessageTypes.ClaimRewardFullInventorySpace.ToString()] = "Thank you for voting! You have claimed your reward(s)!\nHowever, you do not have enough inventory space to claim all rewards.  Clear your inventory and type /claim again to claim the rest.",
+                [MessageTypes.ClaimRewardPartial.ToString()] = "Thank you for voting!  You have only voted for some of the websites, and have received those rewards.  Type /votestatus to check the status of your votes.",
+                [MessageTypes.ClaimRewardPartialInventorySpace.ToString()] = "Thank you for voting!  You have only voted for some of the websites, and have received those rewards. Type /votestatus to check the status of your votes.\nHowever, you do not have enough inventory space to claim all rewards.  Clear your inventory and type /claim again to claim the rest.",
+                [MessageTypes.ClaimRewardError.ToString()] = "There was an error claiming some of your rewards, please try again later.  You can check the status of your votes by typing /votestatus",
+                [MessageTypes.ClaimRewardErrorInventorySpace.ToString()] = "There was an error claiming some of your rewards, please try again later.  You can check the status of your votes by typing /votestatus\nHowever, you do not have enough inventory space to claim all rewards.  Clear your inventory and type /claim again to claim the rest.",
                 [MessageTypes.PleaseWait.ToString()] = "Checking vote sites for your rewards, please wait...",
                 [MessageTypes.RewardList.ToString()] = "The following rewards are given for voting:\n{0}",
                 [MessageTypes.VoteList.ToString()] = "The following vote sites are available:\n{0}"
@@ -289,6 +294,37 @@ namespace Oxide.Plugins
         private string GetMessage(MessageTypes type, params object[] args)
         {
             return string.Format(lang.GetMessage(type.ToString(), this), args);
+        }
+
+        private void SendClaimMessage(BasePlayer player, bool allClaimed, bool inventoryFull, bool errors)
+        {
+            var messageKey = MessageTypes.ClaimRewardError;
+            if (allClaimed && !inventoryFull && !errors)
+            {
+                messageKey = MessageTypes.ClaimRewardFull;
+            }
+            else if (allClaimed && inventoryFull && !errors)
+            {
+                messageKey = MessageTypes.ClaimRewardFullInventorySpace;
+            }
+            else if (!allClaimed && !inventoryFull && !errors)
+            {
+                messageKey = MessageTypes.ClaimRewardPartial;
+            }
+            else if (!allClaimed && inventoryFull && !errors)
+            {
+                messageKey = MessageTypes.ClaimRewardPartialInventorySpace;
+            }
+            else if (errors && !inventoryFull)
+            {
+                messageKey = MessageTypes.ClaimRewardError;
+            }
+            else if (errors && inventoryFull)
+            {
+                messageKey = MessageTypes.ClaimRewardErrorInventorySpace;
+            }
+
+            Player.Message(player, GetMessage(messageKey), config.Prefix);
         }
 
         #endregion
